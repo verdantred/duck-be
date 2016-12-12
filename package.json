@@ -1,0 +1,19 @@
+{
+  "name": "duck-be",
+  "version": "1.0.0",
+  "description": "Simpe duck-be for having fun",
+  "main": "server.js",
+  "scripts": {
+    "start": "PORT=8081 node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jaakkoyl/duck-be.git"
+  },
+  "license": "BSD-3-Clause",
+  "author": "Jaakko Ylinen",
+  "dependencies": {
+    "body-parser": "1.15.2",
+    "express": "4.14.0"
+  }
+}
