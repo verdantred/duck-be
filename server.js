@@ -1,5 +1,7 @@
 const app = require('express')();
 const bodyParser = require('body-parser');
+expressValidator = require('express-validator')
+var database_conn = require('./database').database;
 
 const species = [
   {
@@ -19,7 +21,7 @@ const species = [
   }
 ];
 
-const sightings = [
+var sightings = [
   {
     id: '1',
     species: 'gadwall',
@@ -79,22 +81,60 @@ const sightings = [
 ];
 
 app.use(bodyParser.json());
+app.use(expressValidator([]));
 
 app.get('/sightings', (req, res) => {
-  res.json(sightings);
+  
+    database_conn.get({}).then((sightings) => {
+      console.log(sightings)
+      res.json(sightings);
+    }).catch((err) => {
+      console.log(err);
+    });
+    
 });
 
 app.post('/sightings', (req, res) => {
-  req.body.id = (sightings.length + 1).toString();
-  sightings.push(req.body);
-  res.json(req.body);
+  req.sanitize('species').trim();
+  req.sanitize('species').escape();
+  req.sanitize('description').trim();
+  req.sanitize('description').escape();
+  req.sanitize('dateTime').trim();
+  req.sanitize('dateTime').escape();
+  req.validate('dateTime').isISO8601();
+  
+  database_conn.get({}).then((sightings) => {
+    req.body.id = (sightings.length + 1).toString();
+    database_conn.add(req.body).then((sighting) => {
+      console.log(sighting)
+    res.json(sighting);
+    }).catch((err) => {
+      console.log(err);
+    });
+  }).catch((err) => {
+    console.log(err);
+  });
+  
 });
 
 app.get('/species', (req, res) => {
+  var species = database_conn.getSpecies();
+  console.log(species)
   res.json(species);
 });
 
 const port = process.env.PORT ? process.env.PORT : 8081;
-const server = app.listen(port, () => {
+var Collection;
+
+// First connect to database..
+var promise = database_conn.open();
+promise.then((db) => {
+  console.log("Database online");
+  Collection = db;
+  // and after that is done start the server.
+  const server = app.listen(port, () => {
     console.log("Server listening  port %s", port);
+  });
+}).catch((err) => {
+  console.log(err);
 });
