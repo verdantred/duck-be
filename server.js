@@ -21,65 +21,6 @@ const species = [
   }
 ];
 
-var sightings = [
-  {
-    id: '1',
-    species: 'gadwall',
-    description: 'All your ducks are belong to us',
-    dateTime: '2016-10-01T01:01:00Z',
-    count: 1
-  },
-  {
-    id: '2',
-    species: 'lesser scaup',
-    description: 'This is awesome',
-    dateTime: '2016-12-13T12:05:00Z',
-    count: 5
-  },
-  {
-    id: '3',
-    species: 'canvasback',
-    description: '...',
-    dateTime: '2016-11-30T23:59:00Z',
-    count: 2
-  },
-  {
-    id: '4',
-    species: 'mallard',
-    description: 'Getting tired',
-    dateTime: '2016-11-29T00:00:00Z',
-    count: 18
-  },
-  {
-    id: '5',
-    species: 'redhead',
-    description: 'I think this one is called Alfred J.',
-    dateTime: '2016-11-29T10:00:01Z',
-    count: 1
-  },
-  {
-    id: '6',
-    species: 'redhead',
-    description: 'If it looks like a duck, swims like a duck, and quacks like a duck, then it probably is a duck.',
-    dateTime: '2016-12-01T13:59:00Z',
-    count: 1
-  },
-  {
-    id: '7',
-    species: 'mallard',
-    description: 'Too many ducks to be counted',
-    dateTime: '2016-12-12T12:12:12Z',
-    count: 100
-  },
-  {
-    id: '8',
-    species: 'canvasback',
-    description: 'KWAAK!!!1',
-    dateTime: '2016-12-11T01:01:00Z',
-    count: 5
-  }
-];
-
 app.use(bodyParser.json());
 app.use(expressValidator([]));
 
@@ -90,6 +31,7 @@ app.get('/sightings', (req, res) => {
       res.json(sightings);
     }).catch((err) => {
       console.log(err);
+      res.status(500).send("Server error while fetching sightings.");
     });
     
 });
@@ -102,17 +44,35 @@ app.post('/sightings', (req, res) => {
   req.sanitize('dateTime').trim();
   req.sanitize('dateTime').escape();
   req.validate('dateTime').isISO8601();
-  
-  database_conn.get({}).then((sightings) => {
-    req.body.id = (sightings.length + 1).toString();
-    database_conn.add(req.body).then((sighting) => {
-      console.log(sighting)
-    res.json(sighting);
+
+  req.getValidationResult().then((result) => {
+    if(!result.isEmpty()){
+      console.log(result);
+      res.status(400).send("Sighting validation failed: dateTime is not a valid ISO-8601 date [YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]Z.");
+      return;
+    }
+    database_conn.get({}).then((sightings) => {
+      req.body.id = (sightings.length + 1).toString();
+      console.log(req.body);
+      database_conn.add(req.body).then((sighting) => {
+        res.json(sighting);
+      }).catch((err) => {
+        console.log(err);
+        if(err.name == "ValidationError"){
+          var message = err.message + ":";
+          for(prop in err.errors) {
+            message = message + " " + err.errors[prop].message;
+          }
+          res.status(400).send(message);
+        }
+        else {
+          res.status(500).send("Server error while fetching sightings.");
+        }
+      });
     }).catch((err) => {
       console.log(err);
+      res.status(500).send("Server error while fetching sightings.");
     });
-  }).catch((err) => {
-    console.log(err);
   });
   
 });
@@ -130,7 +90,7 @@ var Collection;
 var promise = database_conn.open();
 promise.then((db) => {
   console.log("Database online");
-  Collection = db;
+  console.log(db);
   // and after that is done start the server.
   const server = app.listen(port, () => {
     console.log("Server listening  port %s", port);
