@@ -7,6 +7,7 @@ var Species;
 // Connection URL. In production this should not be visible in a public repository.
 const url = 'mongodb://verdant:salainensana@ds135049.mlab.com:35049/bongaukset';
 
+
 const knownSpecies = [
 {
     name: 'mallard'
@@ -24,6 +25,8 @@ const knownSpecies = [
     name: 'lesser scaup'
   }
 ];
+
+var currentSpecies;
 
 var sightings = [
   {
@@ -84,9 +87,11 @@ var sightings = [
   }
 ];
 
-const speciesNames = knownSpecies.map((obj)=>{
-    return obj.name.toString();
-});
+function getNames(list) {
+    return list.map((obj)=>{
+        return obj.name.toString();
+    });
+}
 
 const isoDateRegex = /(\d{4})-(\d{2})-(\d{2})T(\d{2})\:(\d{2})\:(\d{2})[+-](\d{2})\:(\d{2})/; // Incomplete regex for ISO dates, not in use
 
@@ -94,7 +99,12 @@ var sightSchema = mongoose.Schema({
     id: Number,
     species: {
         type: String,
-        enum: speciesNames
+        validate: {
+            validator: function(v) {
+                return currentSpecies.indexOf(v) >= 0;
+            },
+            message: "{VALUE} is not a valid enum value for path {PATH}"
+        }
     },
     description: String,
     dateTime: String,
@@ -118,11 +128,15 @@ function open(){
             var dbOnline = true;
             Sighting = mongoose.model("Sighting", sightSchema);
             Species = mongoose.model("Species", speciesSchema);
-            sightingPromise = Sighting.count({});
-            speciesPromise = Species.count({});
+            var sightingPromise = Sighting.count({});
+            var speciesPromise = Species.find({});
             Promise.all([sightingPromise, speciesPromise]).then((values) => {
                 if(values[0] == 0) sightingPromise = Sighting.insertMany(sightings);
-                if(values[1] == 0) speciesPromise = Species.insertMany(knownSpecies);
+                if(values[1].length == 0) speciesPromise = Species.insertMany(knownSpecies);
+                else {
+                    currentSpecies = getNames(values[1]);
+                    speciesPromise = Promise.resolve();
+                }
                 Promise.all([sightingPromise, speciesPromise]).then((values) => {
                     resolve(Sighting);
                 }).catch((err) => {
@@ -158,8 +172,8 @@ function removeOne(q, body){
     return Sighting.remove(q);
 }
 
-function getSpecies(){
-    return Species.find({});
+function getSpecies(q, c, o){
+    return Species.find(q, c, o);
 }
 
 function add(body){

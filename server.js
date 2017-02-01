@@ -25,8 +25,27 @@ app.use(bodyParser.json());
 app.use(expressValidator([]));
 
 app.get('/sightings', (req, res) => {
-  
-    database_conn.getSightings({}, {}).then((sightings) => {
+    q = {};
+    if(req.query.month){
+      var nextMonth = new Date(req.query.month);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      nextMonth = nextMonth.toISOString().split('.')[0] + 'Z';
+      q.dateTime = {$gt: req.query.month, $lt: nextMonth};
+      
+    }
+    else if(req.query.timespan){
+      delta = req.query.timespan.split('--');
+      delta[1] = new Date(delta[1]).toISOString().split('.')[0] + 'Z';
+      q.dateTime = {$gt: delta[0], $lt: delta[1]};
+    }
+    if(req.query.species){
+      q.species = req.query.species
+    }
+    if(req.query.amount){
+      q.count = {$gte: req.query.amount}
+    }
+    //console.log(q);
+    database_conn.getSightings(q, {_id: 0, __v: 0}).then((sightings) => {
       console.log(sightings)
       res.json(sightings);
     }).catch((err) => {
@@ -38,7 +57,7 @@ app.get('/sightings', (req, res) => {
 
 app.get('/sighting/:id', (req, res) => {
     var sightingId = req.params.id;
-    database_conn.getSighting({"id": sightingId}, "id species description dateTime count", {}).then((sighting) => {
+    database_conn.getSighting({"id": sightingId}, {_id: 0, __v: 0}, {}).then((sighting) => {
       console.log(sighting);
       var status = res.statusCode;
       var content = "json";
@@ -61,7 +80,7 @@ app.put('/sighting/:id', (req, res) => {
       delete req.body.id;
     }
     database_conn.updateSighting({"id": sightingId}, req.body, {runValidators: true}).then((raw) => {
-      console.log(raw);
+      // console.log(raw);
       var status = res.statusCode;
       if(!raw.n) {
         status = 404;
@@ -94,7 +113,7 @@ app.put('/sighting/:id', (req, res) => {
 app.delete('/sighting/:id', (req, res) => {
     var sightingId = req.params.id;
     database_conn.deleteSighting({"id": sightingId}).then((raw) => {
-      console.log(raw);
+      // console.log(raw);
       var status = res.statusCode;
       if(!raw.result.n) {
         status = 404;
@@ -126,10 +145,10 @@ app.post('/sightings', (req, res) => {
       res.status(400).send("Sighting validation failed: dateTime is not a valid ISO-8601 date [YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]Z.");
       return;
     }
-    database_conn.getSighting({}, "id", {sort: "-id"}).then((sighting) => {
+    database_conn.getSighting({}, {}, {sort: "-id"}).then((sighting) => {
       req.body.id = (sighting.id + 1).toString();
-      console.log(sighting);
       database_conn.addSighting(req.body).then((sighting) => {
+        console.log(sighting);
         res.json(sighting);
       }).catch((err) => {
         console.log(err);
@@ -153,12 +172,12 @@ app.post('/sightings', (req, res) => {
 });
 
 app.get('/species', (req, res) => {
-  database_conn.getSpecies().then((species) => {
+  database_conn.getSpecies({}, "name", {select: "-_id"}).then((species) => {
     console.log(species)
     res.json(species);
   }).catch((err) => {
     console.log(err);
-    res.status(500).send("Server error while fetching sightings.");
+    res.status(500).send("Server error while fetching species.");
   });
 });
 
