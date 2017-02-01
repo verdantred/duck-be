@@ -2,6 +2,7 @@ assert = require('assert')
 
 var mongoose = require('mongoose');
 var Sighting;
+var Species;
 
 // Connection URL. In production this should not be visible in a public repository.
 const url = 'mongodb://verdant:salainensana@ds135049.mlab.com:35049/bongaukset';
@@ -100,6 +101,10 @@ var sightSchema = mongoose.Schema({
     count: Number
 });
 
+var speciesSchema = mongoose.Schema({
+    name: String
+});
+
 function open(){
 
     return new Promise((resolve, reject) => {
@@ -112,7 +117,20 @@ function open(){
             console.log("Connected correctly to Mongo database server");
             var dbOnline = true;
             Sighting = mongoose.model("Sighting", sightSchema);
-            resolve(Sighting);
+            Species = mongoose.model("Species", speciesSchema);
+            sightingPromise = Sighting.count({});
+            speciesPromise = Species.count({});
+            Promise.all([sightingPromise, speciesPromise]).then((values) => {
+                if(values[0] == 0) sightingPromise = Sighting.insertMany(sightings);
+                if(values[1] == 0) speciesPromise = Species.insertMany(knownSpecies);
+                Promise.all([sightingPromise, speciesPromise]).then((values) => {
+                    resolve(Sighting);
+                }).catch((err) => {
+                    reject(err);
+                });
+            }).catch((err) => {
+                reject(err);
+            });
         });
     })
 }
@@ -124,12 +142,24 @@ function close(){
     }
 }
 
-function get(q){
-    return Sighting.find(q);
+function get(q, o){
+    return Sighting.find(q, o);
+}
+
+function getOne(q, c, o){
+    return Sighting.findOne(q, c, o);
+}
+
+function updateOne(q, body, o){
+    return Sighting.update(q, { $set: body}, o);
+}
+
+function removeOne(q, body){
+    return Sighting.remove(q);
 }
 
 function getSpecies(){
-    return knownSpecies;
+    return Species.find({});
 }
 
 function add(body){
@@ -146,11 +176,14 @@ function add(body){
 }
 
 var db = {
-    open : open,
-    close: close,
-    get: get,
+    openConnection : open,
+    closeConnection: close,
+    getSightings: get,
+    getSighting: getOne,
+    updateSighting: updateOne,
+    deleteSighting: removeOne,
     getSpecies: getSpecies,
-    add: add
+    addSighting: add
 }
 
 module.exports.database = db;

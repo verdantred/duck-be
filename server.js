@@ -26,12 +26,87 @@ app.use(expressValidator([]));
 
 app.get('/sightings', (req, res) => {
   
-    database_conn.get({}).then((sightings) => {
+    database_conn.getSightings({}, {}).then((sightings) => {
       console.log(sightings)
       res.json(sightings);
     }).catch((err) => {
       console.log(err);
       res.status(500).send("Server error while fetching sightings.");
+    });
+    
+});
+
+app.get('/sighting/:id', (req, res) => {
+    var sightingId = req.params.id;
+    database_conn.getSighting({"id": sightingId}, "id species description dateTime count", {}).then((sighting) => {
+      console.log(sighting);
+      var status = res.statusCode;
+      var content = "json";
+      if(sighting == null) {
+        status = 404;
+        content = "";
+        sighting = "Could not find sighting.";
+      }
+      res.status(status).contentType(content).send(sighting);
+    }).catch((err) => {
+      console.log(err);
+      res.status(500).send("Server error while fetching a sighting.");
+    });
+    
+});
+
+app.put('/sighting/:id', (req, res) => {
+    var sightingId = req.params.id;
+    if(req.body.id){
+      delete req.body.id;
+    }
+    database_conn.updateSighting({"id": sightingId}, req.body, {runValidators: true}).then((raw) => {
+      console.log(raw);
+      var status = res.statusCode;
+      if(!raw.n) {
+        status = 404;
+        raw = "Could not find sighting.";
+      }
+      else if(!raw.nModified){
+        status = 400;
+        raw = "Update data was invalid.";
+      }
+      else {
+        raw = "Sighting updated successfully.";
+      }
+      res.status(status).send(raw);
+    }).catch((err) => {
+      console.log(err);
+      if(err.name == "ValidationError"){
+          var message = err.message + ":";
+          for(prop in err.errors) {
+            message = message + " " + err.errors[prop].message;
+          }
+          res.status(400).send(message);
+        }
+        else {
+          res.status(500).send("Server error while fetching sightings.");
+        }
+    });
+    
+});
+
+app.delete('/sighting/:id', (req, res) => {
+    var sightingId = req.params.id;
+    database_conn.deleteSighting({"id": sightingId}).then((raw) => {
+      console.log(raw);
+      var status = res.statusCode;
+      if(!raw.result.n) {
+        status = 404;
+        raw = "Could not find sighting.";
+      }
+      else {
+        raw = "Sighting deleted successfully.";
+      }
+      res.status(status).send(raw);
+    }).catch((err) => {
+      console.log(err);
+      res.status(500).send("Server error while fetching a sighting.");
     });
     
 });
@@ -51,10 +126,10 @@ app.post('/sightings', (req, res) => {
       res.status(400).send("Sighting validation failed: dateTime is not a valid ISO-8601 date [YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]Z.");
       return;
     }
-    database_conn.get({}).then((sightings) => {
-      req.body.id = (sightings.length + 1).toString();
-      console.log(req.body);
-      database_conn.add(req.body).then((sighting) => {
+    database_conn.getSighting({}, "id", {sort: "-id"}).then((sighting) => {
+      req.body.id = (sighting.id + 1).toString();
+      console.log(sighting);
+      database_conn.addSighting(req.body).then((sighting) => {
         res.json(sighting);
       }).catch((err) => {
         console.log(err);
@@ -78,19 +153,22 @@ app.post('/sightings', (req, res) => {
 });
 
 app.get('/species', (req, res) => {
-  var species = database_conn.getSpecies();
-  console.log(species)
-  res.json(species);
+  database_conn.getSpecies().then((species) => {
+    console.log(species)
+    res.json(species);
+  }).catch((err) => {
+    console.log(err);
+    res.status(500).send("Server error while fetching sightings.");
+  });
 });
 
 const port = process.env.PORT ? process.env.PORT : 8081;
 var Collection;
 
 // First connect to database..
-var promise = database_conn.open();
+var promise = database_conn.openConnection();
 promise.then((db) => {
   console.log("Database online");
-  console.log(db);
   // and after that is done start the server.
   const server = app.listen(port, () => {
     console.log("Server listening  port %s", port);
