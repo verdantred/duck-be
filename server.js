@@ -35,7 +35,8 @@ app.get('/sightings', (req, res) => {
     }
     else if(req.query.timespan){
       delta = req.query.timespan.split('--');
-      delta[1] = new Date(delta[1]).toISOString().split('.')[0] + 'Z';
+      if(!delta[1]) delta[1] = new Date().toISOString().split('.')[0] + 'Z';
+      else delta[1] = new Date(delta[1]).toISOString().split('.')[0] + 'Z';
       q.dateTime = {$gt: delta[0], $lt: delta[1]};
     }
     if(req.query.species){
@@ -50,7 +51,8 @@ app.get('/sightings', (req, res) => {
       res.json(sightings);
     }).catch((err) => {
       console.log(err);
-      res.status(500).send("Server error while fetching sightings.");
+      if(err.name == 'CastError') res.status(400).send(err.message);
+      else res.status(500).send(err.message | "Server error while fetching sightings.");
     });
     
 });
@@ -69,7 +71,7 @@ app.get('/sighting/:id', (req, res) => {
       res.status(status).contentType(content).send(sighting);
     }).catch((err) => {
       console.log(err);
-      res.status(500).send("Server error while fetching a sighting.");
+      res.status(500).send( err.message | "Server error while fetching a sighting.");
     });
     
 });
