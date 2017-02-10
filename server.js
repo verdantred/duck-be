@@ -30,14 +30,14 @@ app.get('/sightings', (req, res) => {
       var nextMonth = new Date(req.query.month);
       nextMonth.setMonth(nextMonth.getMonth() + 1);
       nextMonth = nextMonth.toISOString().split('.')[0] + 'Z';
-      q.dateTime = {$gt: req.query.month, $lt: nextMonth};
+      q.dateTime = {$gte: req.query.month, $lte: nextMonth};
       
     }
     else if(req.query.timespan){
       delta = req.query.timespan.split('--');
       if(!delta[1]) delta[1] = new Date().toISOString().split('.')[0] + 'Z';
       else delta[1] = new Date(delta[1]).toISOString().split('.')[0] + 'Z';
-      q.dateTime = {$gt: delta[0], $lt: delta[1]};
+      q.dateTime = {$gte: delta[0], $lte: delta[1]};
     }
     if(req.query.species){
       q.species = req.query.species
